@@ -105,7 +105,7 @@ app.post('/api/send-verification-email', async(req, res) => {
         const mailOptions = {
             from: process.env.EMAIL_FROM || process.env.EMAIL_USER || 'noreply@mochila.com',
             to: email,
-            subject: subject || '認証コード',
+            subject: subject || 'mochilaアプリからの確認コード',
             html: `
         <div style="font-family: 'Noto Sans JP', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h2 style="color: #6758E8; text-align: center;">認証コード</h2>
@@ -172,6 +172,10 @@ ${code}
         });
     }
 });
+
+// User profile routes
+const userRoutes = require('./routes/user');
+app.use('/api/user', userRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
