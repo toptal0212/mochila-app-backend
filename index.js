@@ -16,6 +16,10 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Serve uploaded files statically
+const path = require('path');
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Create reusable transporter object using SMTP transport
 const createTransporter = () => {
     // Option 1: Using Gmail SMTP (for development/testing)
