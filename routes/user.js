@@ -3,9 +3,9 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const router = express.Router();
+const { getUserByEmail, getUserById, saveUser } = require('../utils/dataStore');
 
-// In-memory storage (replace with database in production)
-let users = [];
+const API_BASE_URL = process.env.API_BASE_URL || 'https://mochila-app-backend.vercel.app';
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -68,36 +68,27 @@ router.post('/profile', async (req, res) => {
             });
         }
 
-        // Find or create user
-        let user = users.find(u => u.email === email);
-        if (!user) {
-            user = {
-                id: Date.now().toString(),
-                email,
-                createdAt: new Date().toISOString(),
-            };
-            users.push(user);
-        }
-
-        // Update user profile
-        user.gender = gender;
-        user.travelCompanionPreferences = travelCompanionPreferences || [];
-        user.activityInterests = activityInterests || [];
-        user.personalityTraits = personalityTraits || [];
-        user.matchPreference = matchPreference;
-        user.birthday = birthday;
-        user.region = region;
-        user.purposeOfUse = purposeOfUse || [];
-        user.howDidYouLearn = howDidYouLearn;
-        user.displayName = displayName;
-        user.emailNotifications = emailNotifications || {
-            allAgreed: true,
-            messagesAgreed: true,
-            campaignsAgreed: true,
-        };
-        user.occupation = occupation;
-        user.travelDestination = travelDestination;
-        user.updatedAt = new Date().toISOString();
+        // Save user profile using centralized data store
+        const user = saveUser({
+            email,
+            gender,
+            travelCompanionPreferences,
+            activityInterests,
+            personalityTraits,
+            matchPreference,
+            birthday,
+            region,
+            purposeOfUse,
+            howDidYouLearn,
+            displayName,
+            emailNotifications: emailNotifications || {
+                allAgreed: true,
+                messagesAgreed: true,
+                campaignsAgreed: true,
+            },
+            occupation,
+            travelDestination,
+        });
 
         res.json({
             success: true,
@@ -122,7 +113,7 @@ router.post('/profile', async (req, res) => {
 router.get('/profile/:email', (req, res) => {
     try {
         const { email } = req.params;
-        const user = users.find(u => u.email === email);
+        const user = getUserByEmail(email);
 
         if (!user) {
             return res.status(404).json({
@@ -131,9 +122,22 @@ router.get('/profile/:email', (req, res) => {
             });
         }
 
+        // Convert relative URLs to absolute URLs
+        const userWithAbsoluteUrls = {
+            ...user,
+            profilePhotoUrl: user.profilePhotoUrl 
+                ? (user.profilePhotoUrl.startsWith('http') 
+                    ? user.profilePhotoUrl 
+                    : `${API_BASE_URL}${user.profilePhotoUrl}`)
+                : null,
+            photos: (user.photos || []).map(photo => 
+                photo.startsWith('http') ? photo : `${API_BASE_URL}${photo}`
+            ),
+        };
+
         res.json({
             success: true,
-            user,
+            user: userWithAbsoluteUrls,
         });
     } catch (error) {
         console.error('Error getting profile:', error);
@@ -148,7 +152,7 @@ router.get('/profile/:email', (req, res) => {
 // Upload profile photo
 router.post('/profile/photo', upload.single('photo'), async (req, res) => {
     try {
-        const { email, filter } = req.body;
+        const { email, filter, isAdditional } = req.body;
 
         // Validation
         if (!email) {
@@ -170,7 +174,7 @@ router.post('/profile/photo', upload.single('photo'), async (req, res) => {
         }
 
         // Find user
-        let user = users.find(u => u.email === email);
+        let user = getUserByEmail(email);
         if (!user) {
             // Delete uploaded file if user not found
             fs.unlinkSync(req.file.path);
@@ -180,28 +184,56 @@ router.post('/profile/photo', upload.single('photo'), async (req, res) => {
             });
         }
 
-        // Delete old photo if exists
-        if (user.profilePhotoUrl) {
-            const oldPhotoPath = path.join(__dirname, '../uploads', path.basename(user.profilePhotoUrl));
-            if (fs.existsSync(oldPhotoPath)) {
-                fs.unlinkSync(oldPhotoPath);
-            }
+        // Store photo URL with absolute path
+        const relativePhotoUrl = `/uploads/${req.file.filename}`;
+        const absolutePhotoUrl = `${API_BASE_URL}${relativePhotoUrl}`;
+        
+        // Initialize photos array if it doesn't exist
+        if (!user.photos) {
+            user.photos = [];
         }
 
-        // Store photo URL (in production, upload to cloud storage like S3, Cloudinary, etc.)
-        const photoUrl = `/uploads/${req.file.filename}`;
-        user.profilePhotoUrl = photoUrl;
-        user.profilePhotoFilter = filter || 'original';
-        user.updatedAt = new Date().toISOString();
+        if (isAdditional === 'true') {
+            // Add as additional photo
+            user.photos.push(relativePhotoUrl);
+        } else {
+            // Replace main profile photo
+            // Delete old main photo if exists
+            if (user.profilePhotoUrl) {
+                const oldPhotoPath = path.join(__dirname, '../uploads', path.basename(user.profilePhotoUrl));
+                if (fs.existsSync(oldPhotoPath)) {
+                    fs.unlinkSync(oldPhotoPath);
+                }
+            }
+            user.profilePhotoUrl = relativePhotoUrl;
+            user.profilePhotoFilter = filter || 'original';
+            
+            // If this is the first photo, also add it to photos array
+            if (user.photos.length === 0) {
+                user.photos.push(relativePhotoUrl);
+            } else {
+                // Replace first photo in array with new main photo
+                user.photos[0] = relativePhotoUrl;
+            }
+        }
+        
+        // Update user with new photo
+        user = saveUser({
+            email: user.email,
+            profilePhotoUrl: user.profilePhotoUrl,
+            photos: user.photos,
+            profilePhotoFilter: user.profilePhotoFilter,
+        });
 
         res.json({
             success: true,
             message: 'Profile photo uploaded successfully',
-            photoUrl: photoUrl,
+            photoUrl: absolutePhotoUrl, // Return absolute URL to frontend
             user: {
                 id: user.id,
                 email: user.email,
-                profilePhotoUrl: photoUrl,
+                profilePhotoUrl: user.profilePhotoUrl ? `${API_BASE_URL}${user.profilePhotoUrl}` : null,
+                photos: user.photos.map(p => p.startsWith('http') ? p : `${API_BASE_URL}${p}`),
                 profilePhotoFilter: user.profilePhotoFilter,
             },
         });

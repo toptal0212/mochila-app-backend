@@ -1,15 +1,19 @@
 # Mochila Backend Server
 
-Backend server for sending verification emails in the Mochila app.
+Backend server for the Mochila dating/social app.
 
 ## Project Structure
 
 ```
 mochila-backend/
 ├── index.js          # Main server file
+├── routes/           # API route handlers
+│   ├── user.js      # User profile routes
+│   └── members.js   # Members list and profile routes
+├── utils/            # Utility functions
+│   └── dataStore.js # Centralized data storage
+├── uploads/          # Uploaded images directory (created automatically)
 ├── package.json      # Dependencies
-├── .env              # Environment variables (create from .env.example)
-├── .gitignore        # Git ignore rules
 └── README.md         # This file
 ```
 
@@ -22,91 +26,26 @@ mochila-backend/
    ```
 
 2. **Configure environment variables:**
-   ```bash
-   cp env.example .env
-   ```
-   Then edit `.env` with your email service credentials.
-   
-   **📖 For detailed setup instructions, see [setup-email.md](./setup-email.md)**
-   
-   Quick example (Gmail):
+   Create a `.env` file (for local development):
    ```env
-   # Server Configuration
    PORT=3000
    NODE_ENV=development
-
-   # Email Service Configuration
-   # Options: 'gmail', 'sendgrid', 'mailgun', or 'custom'
+   API_BASE_URL=http://localhost:3000
+   FRONTEND_URL=*
+   
+   # Email Service Configuration (optional)
    EMAIL_SERVICE=gmail
-
-   # Gmail Configuration (if using Gmail)
    EMAIL_USER=your-email@gmail.com
    EMAIL_PASSWORD=your-app-password
-
-   # SendGrid Configuration (if using SendGrid)
-   # SENDGRID_API_KEY=your-sendgrid-api-key
-
-   # Mailgun Configuration (if using Mailgun)
-   # MAILGUN_SMTP_USER=your-mailgun-user
-   # MAILGUN_SMTP_PASSWORD=your-mailgun-password
-
-   # Custom SMTP Configuration (if using custom SMTP)
-   # SMTP_HOST=smtp.example.com
-   # SMTP_PORT=587
-   # SMTP_SECURE=false
-   # SMTP_USER=your-smtp-user
-   # SMTP_PASSWORD=your-smtp-password
-
-   # Email From Address
    EMAIL_FROM=noreply@mochila.com
    ```
 
-## Email Service Options
-
-### Option 1: Gmail (Development/Testing)
-
-1. Enable 2-Step Verification on your Gmail account
-2. Generate an App Password: https://myaccount.google.com/apppasswords
-3. Update `.env`:
-   ```
-   EMAIL_SERVICE=gmail
-   EMAIL_USER=your-email@gmail.com
-   EMAIL_PASSWORD=your-app-password
-   ```
-
-### Option 2: SendGrid (Production Recommended)
-
-1. Sign up at https://sendgrid.com
-2. Create an API key
-3. Update `.env`:
-   ```
-   EMAIL_SERVICE=sendgrid
-   SENDGRID_API_KEY=your-sendgrid-api-key
-   EMAIL_FROM=your-verified-email@domain.com
-   ```
-
-### Option 3: Mailgun (Production)
-
-1. Sign up at https://www.mailgun.com
-2. Get SMTP credentials
-3. Update `.env`:
-   ```
-   EMAIL_SERVICE=mailgun
-   MAILGUN_SMTP_USER=your-mailgun-user
-   MAILGUN_SMTP_PASSWORD=your-mailgun-password
-   EMAIL_FROM=your-verified-email@domain.com
-   ```
-
-### Option 4: Custom SMTP
-
-1. Update `.env` with your SMTP server details:
-   ```
-   SMTP_HOST=smtp.example.com
-   SMTP_PORT=587
-   SMTP_SECURE=false
-   SMTP_USER=your-smtp-user
-   SMTP_PASSWORD=your-smtp-password
-   EMAIL_FROM=noreply@yourdomain.com
+   **For Vercel deployment:**
+   Set environment variables in Vercel Dashboard:
+   ```env
+   API_BASE_URL=https://mochila-app-backend.vercel.app
+   FRONTEND_URL=*
+   NODE_ENV=production
    ```
 
 ## Running the Server
@@ -125,103 +64,62 @@ The server will run on `http://localhost:3000` by default.
 
 ## API Endpoints
 
-### POST `/api/send-verification-email`
+### User Profile
 
-Sends a verification code email to the specified address.
+- **POST `/api/user/profile`** - Create/Update user profile
+- **GET `/api/user/profile/:email`** - Get user profile by email
+- **POST `/api/user/profile/photo`** - Upload profile photo
 
-**Request Body:**
-```json
-{
-  "email": "user@example.com",
-  "code": "123456",
-  "subject": "認証コード",
-  "message": "あなたの認証コードは 123456 です。"
-}
-```
+### Members
 
-**Response (Success):**
-```json
-{
-  "success": true,
-  "message": "Verification email sent successfully",
-  "messageId": "..."
-}
-```
+- **GET `/api/members?sort=popular`** - Get members list (sort: popular, login, recommended, new)
+- **GET `/api/members/:memberId`** - Get member profile by ID
+- **GET `/api/members/likes/received/:userId`** - Get likes received by user
+- **GET `/api/members/footprints/:userId`** - Get profile views (footprints) for user
+- **POST `/api/members/likes`** - Add a like
 
-**Response (Error):**
-```json
-{
-  "success": false,
-  "error": "Error message"
-}
-```
+### Email
 
-### GET `/health`
+- **POST `/api/send-verification-email`** - Send verification email
 
-Health check endpoint.
+## Image Upload
 
-**Response:**
-```json
-{
-  "status": "ok",
-  "timestamp": "2024-01-01T00:00:00.000Z"
-}
-```
+**⚠️ Important for Vercel Deployment:**
 
-## Testing Email Configuration
+Vercel is a serverless platform, and files uploaded to the local filesystem (`uploads/` directory) are **NOT persistent**. They will be lost when:
+- The serverless function restarts
+- A new deployment is made
+- The function goes idle
 
-Before connecting the frontend, test your email setup:
+**For production on Vercel, you need to use cloud storage:**
 
-```bash
-npm run test-email
-```
+1. **Vercel Blob Storage** (Recommended)
+   - Install: `npm install @vercel/blob`
+   - Set `BLOB_READ_WRITE_TOKEN` in Vercel environment variables
 
-This will:
-- Verify your SMTP connection
-- Send a test email (or display it in console if using console mode)
-- Show any configuration errors
+2. **Cloudinary** (Alternative)
+   - Install: `npm install cloudinary`
+   - Set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
 
-You can also test with a specific email:
-```bash
-TEST_EMAIL=your-email@example.com npm run test-email
-```
+3. **AWS S3** (Alternative)
+   - Use `aws-sdk` or `@aws-sdk/client-s3`
 
-## Connecting to Frontend
+**Local Development:**
+Images are uploaded to the `uploads/` directory and served statically at `/uploads/:filename`.
+The API returns absolute URLs like `http://localhost:3000/uploads/profile-photo-1234567890.jpg`.
 
-The frontend (Mochila app) should be configured to connect to this backend.
+**Vercel Production:**
+The API returns absolute URLs like `https://mochila-app-backend.vercel.app/uploads/profile-photo-1234567890.jpg` (but files won't persist without cloud storage).
 
-**For development:**
-- Frontend runs on a different port (Expo default)
-- Backend runs on `http://localhost:3000`
-- Update frontend `.env`:
-  ```
-  EXPO_PUBLIC_EMAIL_API_URL=http://localhost:3000/api/send-verification-email
-  ```
+## Data Storage
 
-**For production:**
-- Deploy backend to a hosting service (Heroku, Railway, AWS, etc.)
-- Update frontend `.env` with production backend URL:
-  ```
-  EXPO_PUBLIC_EMAIL_API_URL=https://your-backend-domain.com/api/send-verification-email
-  ```
+Currently using in-memory storage via `utils/dataStore.js`. In production, replace with a database (MongoDB, PostgreSQL, etc.).
 
-## Deployment
+## Features
 
-### Option 1: Railway
-1. Connect your GitHub repository
-2. Railway will auto-detect Node.js
-3. Add environment variables in Railway dashboard
-4. Deploy!
-
-### Option 2: Heroku
-```bash
-heroku create mochila-backend
-heroku config:set EMAIL_SERVICE=gmail EMAIL_USER=... EMAIL_PASSWORD=...
-git push heroku main
-```
-
-### Option 3: AWS / DigitalOcean
-- Follow standard Node.js deployment procedures
-- Ensure environment variables are set
-- Use PM2 or similar for process management
-
+- ✅ Dynamic user and member data
+- ✅ Image upload and storage
+- ✅ Likes and footprints tracking
+- ✅ Profile views tracking
+- ✅ Multiple photos support
+- ✅ Absolute URL generation for images
