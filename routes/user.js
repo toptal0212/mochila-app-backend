@@ -69,7 +69,7 @@ router.post('/profile', async (req, res) => {
         }
 
         // Save user profile using centralized data store
-        const user = saveUser({
+        const user = await saveUser({
             email,
             gender,
             travelCompanionPreferences,
@@ -110,10 +110,10 @@ router.post('/profile', async (req, res) => {
 });
 
 // Get user profile
-router.get('/profile/:email', (req, res) => {
+router.get('/profile/:email', async (req, res) => {
     try {
         const { email } = req.params;
-        const user = getUserByEmail(email);
+        const user = await getUserByEmail(email);
 
         if (!user) {
             return res.status(404).json({
@@ -174,7 +174,7 @@ router.post('/profile/photo', upload.single('photo'), async (req, res) => {
         }
 
         // Find user
-        let user = getUserByEmail(email);
+        let user = await getUserByEmail(email);
         if (!user) {
             // Delete uploaded file if user not found
             fs.unlinkSync(req.file.path);
@@ -218,7 +218,7 @@ router.post('/profile/photo', upload.single('photo'), async (req, res) => {
         }
         
         // Update user with new photo
-        user = saveUser({
+        user = await saveUser({
             email: user.email,
             profilePhotoUrl: user.profilePhotoUrl,
             photos: user.photos,

@@ -22,10 +22,10 @@ const convertToAbsoluteUrls = (user) => {
 };
 
 // Get members list with sorting
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
     try {
         const { sort = 'popular' } = req.query;
-        const allUsers = getAllUsers();
+        const allUsers = await getAllUsers();
 
         // Filter out users without basic profile info
         let sortedMembers = allUsers.filter(user => 
@@ -97,10 +97,10 @@ router.get('/', (req, res) => {
 });
 
 // Get member profile by ID
-router.get('/:memberId', (req, res) => {
+router.get('/:memberId', async (req, res) => {
     try {
         const { memberId } = req.params;
-        const member = getUserById(memberId);
+        const member = await getUserById(memberId);
 
         if (!member) {
             return res.status(404).json({
@@ -110,7 +110,7 @@ router.get('/:memberId', (req, res) => {
         }
 
         // Increment views (add footprint)
-        addFootprint(req.query.viewerId || 'anonymous', memberId);
+        await addFootprint(req.query.viewerId || 'anonymous', memberId);
 
         // Convert to absolute URLs
         const memberWithUrls = convertToAbsoluteUrls(member);
@@ -155,10 +155,10 @@ router.get('/:memberId', (req, res) => {
 });
 
 // Get likes received by user
-router.get('/likes/received/:userId', (req, res) => {
+router.get('/likes/received/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
-        const likesReceived = getLikesReceived(userId);
+        const likesReceived = await getLikesReceived(userId);
 
         const likesWithUrls = likesReceived.map(like => ({
             ...like,
@@ -180,10 +180,10 @@ router.get('/likes/received/:userId', (req, res) => {
 });
 
 // Get footprints (profile views) for user
-router.get('/footprints/:userId', (req, res) => {
+router.get('/footprints/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
-        const footprints = getFootprints(userId);
+        const footprints = await getFootprints(userId);
 
         const footprintsWithUrls = footprints.map(footprint => ({
             ...footprint,
@@ -205,7 +205,7 @@ router.get('/footprints/:userId', (req, res) => {
 });
 
 // Add like
-router.post('/likes', (req, res) => {
+router.post('/likes', async (req, res) => {
     try {
         const { fromUserId, toUserId } = req.body;
 
@@ -216,7 +216,7 @@ router.post('/likes', (req, res) => {
             });
         }
 
-        const like = addLike(fromUserId, toUserId);
+        const like = await addLike(fromUserId, toUserId);
 
         res.json({
             success: true,
