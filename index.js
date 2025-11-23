@@ -181,6 +181,10 @@ ${code}
 const userRoutes = require('./routes/user');
 app.use('/api/user', userRoutes);
 
+// Members routes
+const membersRoutes = require('./routes/members');
+app.use('/api/members', membersRoutes);
+
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
