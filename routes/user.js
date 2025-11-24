@@ -101,10 +101,26 @@ router.post('/profile', async (req, res) => {
         });
     } catch (error) {
         console.error('Error updating profile:', error);
+        console.error('Error stack:', error.stack);
+        
+        // Check if it's a Prisma error (table doesn't exist, etc.)
+        let errorMessage = 'Failed to update profile';
+        if (error.code === 'P2001' || error.code === 'P2025') {
+            errorMessage = 'Database table not found. Please run migrations.';
+        } else if (error.code === 'P2002') {
+            errorMessage = 'Email already exists';
+        } else if (error.message) {
+            errorMessage = error.message;
+        }
+        
         res.status(500).json({
             success: false,
-            error: 'Failed to update profile',
-            details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+            error: errorMessage,
+            details: process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'production' ? {
+                message: error.message,
+                code: error.code,
+                stack: error.stack,
+            } : undefined,
         });
     }
 });
