@@ -52,10 +52,10 @@ model User {
 
   // Relations
   photos                    UserPhoto[]
-  likesGiven                Like[]   @relation("LikesFrom") @map("likes_given")
-  likesReceived             Like[]   @relation("LikesTo") @map("likes_received")
-  footprintsAsViewer        Footprint[] @relation("FootprintViewer") @map("footprints_as_viewer")
-  footprintsAsViewed       Footprint[] @relation("FootprintViewed") @map("footprints_as_viewed")
+  likesGiven                Like[]   @relation("LikesFrom")
+  likesReceived             Like[]   @relation("LikesTo")
+  footprintsAsViewer        Footprint[] @relation("FootprintViewer")
+  footprintsAsViewed       Footprint[] @relation("FootprintViewed")
 
   @@index([email])
   @@index([displayName])
