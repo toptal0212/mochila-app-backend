@@ -21,16 +21,47 @@ const convertToAbsoluteUrls = (user) => {
     };
 };
 
+// Helper function to calculate age from birthday
+const calculateAge = (birthday) => {
+    if (!birthday) return null;
+    try {
+        const birthDate = new Date(birthday);
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+        return age;
+    } catch (error) {
+        return null;
+    }
+};
+
 // Get members list with sorting
 router.get('/', async (req, res) => {
     try {
         const { sort = 'popular' } = req.query;
         const allUsers = await getAllUsers();
 
-        // Filter out users without basic profile info
-        let sortedMembers = allUsers.filter(user => 
-            user.displayName && user.age && user.region
+        console.log(`Total users from database: ${allUsers.length}`);
+
+        // Process users: calculate age from birthday if needed, and filter
+        let processedMembers = allUsers.map(user => {
+            // Calculate age from birthday if age is not set
+            if (!user.age && user.birthday) {
+                user.age = calculateAge(user.birthday);
+            }
+            return user;
+        });
+
+        // Filter out users without displayName (minimum requirement)
+        // age and region are optional for display
+        let sortedMembers = processedMembers.filter(user => 
+            user.displayName
         );
+
+        console.log(`Users with displayName: ${sortedMembers.length}`);
 
         switch (sort) {
             case 'popular':
@@ -72,8 +103,8 @@ router.get('/', async (req, res) => {
             return {
                 id: memberWithUrls.id,
                 displayName: memberWithUrls.displayName,
-                age: memberWithUrls.age,
-                region: memberWithUrls.region,
+                age: memberWithUrls.age || null,
+                region: memberWithUrls.region || '未設定',
                 profilePhotoUrl: memberWithUrls.profilePhotoUrl,
                 isOnline: memberWithUrls.isOnline || false,
                 likes: memberWithUrls.likes || 0,
@@ -81,6 +112,8 @@ router.get('/', async (req, res) => {
                 matchRate: memberWithUrls.matchRate || 0,
             };
         });
+
+        console.log(`Returning ${memberList.length} members to frontend`);
 
         res.json({
             success: true,
