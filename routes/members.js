@@ -41,7 +41,7 @@ const calculateAge = (birthday) => {
 // Get members list with sorting
 router.get('/', async (req, res) => {
     try {
-        const { sort = 'popular' } = req.query;
+        const { sort = 'popular', excludeEmail } = req.query;
         const allUsers = await getAllUsers();
 
         console.log(`Total users from database: ${allUsers.length}`);
@@ -60,6 +60,14 @@ router.get('/', async (req, res) => {
         let sortedMembers = processedMembers.filter(user => 
             user.displayName
         );
+
+        // Exclude current user if excludeEmail is provided
+        if (excludeEmail) {
+            sortedMembers = sortedMembers.filter(user => 
+                user.email !== excludeEmail
+            );
+            console.log(`Excluded current user (${excludeEmail}), remaining: ${sortedMembers.length}`);
+        }
 
         console.log(`Users with displayName: ${sortedMembers.length}`);
 
