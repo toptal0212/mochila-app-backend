@@ -125,61 +125,67 @@ const getUserById = async (id) => {
 // Create or update user
 const saveUser = async (userData) => {
     try {
-        // Prepare data for Prisma
-        const prismaData = {
-            email: userData.email,
-            displayName: userData.displayName,
-            age: userData.age,
-            region: userData.region,
-            hometown: userData.hometown,
-            profilePhotoUrl: userData.profilePhotoUrl,
-            profilePhotoFilter: userData.profilePhotoFilter || 'original',
-            isOnline: userData.isOnline !== undefined ? userData.isOnline : false,
-            matchRate: userData.matchRate || 0,
-            interests: userData.interests || [],
-            videoCallOk: userData.videoCallOk !== undefined ? userData.videoCallOk : false,
-            selfIntroduction: userData.selfIntroduction,
-            height: userData.height,
-            bodyType: userData.bodyType,
-            charmPoints: userData.charmPoints || [],
-            personality: userData.personality || [],
-            languages: userData.languages || ['日本語'],
-            bloodType: userData.bloodType,
-            siblings: userData.siblings,
-            occupation: userData.occupation,
-            income: userData.income,
-            education: userData.education,
-            likesCount: userData.likes || 0,
-            viewsCount: userData.views || 0,
-            gender: userData.gender,
-            travelCompanionPreferences: userData.travelCompanionPreferences || [],
-            activityInterests: userData.activityInterests || [],
-            personalityTraits: userData.personalityTraits || [],
-            matchPreference: userData.matchPreference,
-            birthday: userData.birthday ? new Date(userData.birthday) : null,
-            purposeOfUse: userData.purposeOfUse || [],
-            howDidYouLearn: userData.howDidYouLearn,
-            emailNotifications: userData.emailNotifications || {
-                allAgreed: true,
-                messagesAgreed: true,
-                campaignsAgreed: true,
-            },
-            travelDestination: userData.travelDestination,
-        };
-
-        // Check if user exists
+        // Check if user exists first
         const existingUser = await prisma.user.findUnique({
             where: { email: userData.email },
             include: { photos: true },
         });
 
+        // Helper function to remove undefined values
+        const removeUndefined = (obj) => {
+            const cleaned = {};
+            for (const key in obj) {
+                if (obj[key] !== undefined) {
+                    cleaned[key] = obj[key];
+                }
+            }
+            return cleaned;
+        };
+
+        // Prepare data for Prisma - only include fields that are provided
+        const updateData = removeUndefined({
+            displayName: userData.displayName,
+            age: userData.age,
+            region: userData.region,
+            hometown: userData.hometown,
+            profilePhotoUrl: userData.profilePhotoUrl,
+            profilePhotoFilter: userData.profilePhotoFilter || (existingUser ? undefined : 'original'),
+            isOnline: userData.isOnline !== undefined ? userData.isOnline : undefined,
+            matchRate: userData.matchRate !== undefined ? userData.matchRate : undefined,
+            interests: userData.interests !== undefined ? userData.interests : undefined,
+            videoCallOk: userData.videoCallOk !== undefined ? userData.videoCallOk : undefined,
+            selfIntroduction: userData.selfIntroduction,
+            height: userData.height,
+            bodyType: userData.bodyType,
+            charmPoints: userData.charmPoints !== undefined ? userData.charmPoints : undefined,
+            personality: userData.personality !== undefined ? userData.personality : undefined,
+            languages: userData.languages !== undefined ? userData.languages : undefined,
+            bloodType: userData.bloodType,
+            siblings: userData.siblings,
+            occupation: userData.occupation,
+            income: userData.income,
+            education: userData.education,
+            likesCount: userData.likes !== undefined ? userData.likes : undefined,
+            viewsCount: userData.views !== undefined ? userData.views : undefined,
+            gender: userData.gender,
+            travelCompanionPreferences: userData.travelCompanionPreferences !== undefined ? userData.travelCompanionPreferences : undefined,
+            activityInterests: userData.activityInterests !== undefined ? userData.activityInterests : undefined,
+            personalityTraits: userData.personalityTraits !== undefined ? userData.personalityTraits : undefined,
+            matchPreference: userData.matchPreference,
+            birthday: userData.birthday ? new Date(userData.birthday) : undefined,
+            purposeOfUse: userData.purposeOfUse !== undefined ? userData.purposeOfUse : undefined,
+            howDidYouLearn: userData.howDidYouLearn,
+            emailNotifications: userData.emailNotifications !== undefined ? userData.emailNotifications : undefined,
+            travelDestination: userData.travelDestination,
+        });
+
         let user;
         
         if (existingUser) {
-            // Update existing user
+            // Update existing user - only update provided fields
             user = await prisma.user.update({
                 where: { email: userData.email },
-                data: prismaData,
+                data: updateData,
                 include: {
                     photos: {
                         orderBy: {
@@ -220,17 +226,56 @@ const saveUser = async (userData) => {
                 });
             }
         } else {
-            // Create new user
-            user = await prisma.user.create({
-                data: {
-                    ...prismaData,
-                    photos: userData.photos && userData.photos.length > 0 ? {
-                        create: userData.photos.map((photoUrl, index) => ({
-                            photoUrl,
-                            photoOrder: index,
-                        })),
-                    } : undefined,
+            // Create new user - use defaults for required fields
+            const createData = {
+                email: userData.email,
+                displayName: userData.displayName || null,
+                age: userData.age || null,
+                region: userData.region || null,
+                hometown: userData.hometown || null,
+                profilePhotoUrl: userData.profilePhotoUrl || null,
+                profilePhotoFilter: userData.profilePhotoFilter || 'original',
+                isOnline: userData.isOnline !== undefined ? userData.isOnline : false,
+                matchRate: userData.matchRate || 0,
+                interests: userData.interests || [],
+                videoCallOk: userData.videoCallOk !== undefined ? userData.videoCallOk : false,
+                selfIntroduction: userData.selfIntroduction || null,
+                height: userData.height || null,
+                bodyType: userData.bodyType || null,
+                charmPoints: userData.charmPoints || [],
+                personality: userData.personality || [],
+                languages: userData.languages || ['日本語'],
+                bloodType: userData.bloodType || null,
+                siblings: userData.siblings || null,
+                occupation: userData.occupation || null,
+                income: userData.income || null,
+                education: userData.education || null,
+                likesCount: userData.likes || 0,
+                viewsCount: userData.views || 0,
+                gender: userData.gender || null,
+                travelCompanionPreferences: userData.travelCompanionPreferences || [],
+                activityInterests: userData.activityInterests || [],
+                personalityTraits: userData.personalityTraits || [],
+                matchPreference: userData.matchPreference || null,
+                birthday: userData.birthday ? new Date(userData.birthday) : null,
+                purposeOfUse: userData.purposeOfUse || [],
+                howDidYouLearn: userData.howDidYouLearn || null,
+                emailNotifications: userData.emailNotifications || {
+                    allAgreed: true,
+                    messagesAgreed: true,
+                    campaignsAgreed: true,
                 },
+                travelDestination: userData.travelDestination || null,
+                photos: userData.photos && userData.photos.length > 0 ? {
+                    create: userData.photos.map((photoUrl, index) => ({
+                        photoUrl,
+                        photoOrder: index,
+                    })),
+                } : undefined,
+            };
+
+            user = await prisma.user.create({
+                data: createData,
                 include: {
                     photos: {
                         orderBy: {
