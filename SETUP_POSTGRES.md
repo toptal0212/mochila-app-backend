@@ -87,15 +87,18 @@ Repeat for `POSTGRES_URL_NON_POOLING` if needed.
    npx prisma migrate deploy
    ```
 
-**Option B: Using Vercel Dashboard Query Tab**
+**Option B: Using Vercel Dashboard Query Tab (ブラウザのみ - 推奨!)**
 
+**CLIを使わずにブラウザだけでセットアップできます！**
+
+詳細は `BROWSER_SETUP.md` を参照してください。
+
+簡単な手順:
 1. Go to **Storage** → Your database → **Query** tab
-2. Copy the SQL from `prisma/schema.prisma` and convert it to SQL
-3. Or use this SQL (from `scripts/init-db.sql`):
-   ```sql
-   -- Run the SQL from scripts/init-db.sql
-   ```
-4. Paste and execute the SQL
+2. Copy the SQL from `scripts/create-tables-prisma.sql`
+3. Paste into the SQL editor
+4. Click **Run** button
+5. Check **Tables** tab to verify tables were created
 
 **Option C: Create Migration Locally and Push**
 

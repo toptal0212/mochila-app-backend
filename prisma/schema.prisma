@@ -9,6 +9,8 @@ datasource db {
   provider = "postgresql"
   url      = env("POSTGRES_PRISMA_URL")
   directUrl = env("POSTGRES_URL_NON_POOLING")
+  // Fallback: If POSTGRES_PRISMA_URL is not set, use POSTGRES_URL
+  // If POSTGRES_URL_NON_POOLING is not set, use POSTGRES_URL or POSTGRES_PRISMA_URL
 }
 
 model User {
