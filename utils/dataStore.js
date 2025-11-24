@@ -1,7 +1,15 @@
 // Data store using Prisma Client
 const { PrismaClient } = require('@prisma/client');
 
-const prisma = new PrismaClient();
+// Check environment variables and provide helpful error messages
+if (!process.env.POSTGRES_PRISMA_URL && !process.env.POSTGRES_URL) {
+    console.error('⚠️  Warning: POSTGRES_PRISMA_URL or POSTGRES_URL not found in environment variables');
+    console.error('Please set POSTGRES_PRISMA_URL in Vercel Dashboard → Settings → Environment Variables');
+}
+
+const prisma = new PrismaClient({
+    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+});
 
 // Helper function to convert Prisma User to API format
 const prismaUserToUser = (prismaUser) => {
