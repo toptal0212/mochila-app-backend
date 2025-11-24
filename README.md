@@ -11,9 +11,11 @@ mochila-backend/
 │   ├── user.js      # User profile routes
 │   └── members.js   # Members list and profile routes
 ├── utils/            # Utility functions
-│   └── dataStore.js # Database operations (Vercel Postgres)
-├── scripts/          # Database scripts
-│   └── init-db.sql  # Database schema initialization
+│   └── dataStore.js # Database operations (Prisma Client)
+├── prisma/           # Prisma configuration
+│   └── schema.prisma # Database schema definition
+├── scripts/          # Database scripts (legacy SQL)
+│   └── init-db.sql  # Legacy SQL schema (not needed with Prisma)
 ├── uploads/          # Uploaded images directory (created automatically)
 ├── package.json      # Dependencies
 └── README.md         # This file
@@ -113,9 +115,9 @@ The API returns absolute URLs like `http://localhost:3000/uploads/profile-photo-
 **Vercel Production:**
 The API returns absolute URLs like `https://mochila-app-backend.vercel.app/uploads/profile-photo-1234567890.jpg` (but files won't persist without cloud storage).
 
-## Database Setup (Vercel Postgres)
+## Database Setup (Vercel Postgres + Prisma)
 
-This project uses **Vercel Postgres** for data persistence.
+This project uses **Vercel Postgres** with **Prisma ORM** for data persistence.
 
 ### 1. Create Vercel Postgres Database
 
@@ -126,17 +128,33 @@ This project uses **Vercel Postgres** for data persistence.
 5. Select a region closest to your users
 6. Click **Create**
 
-### 2. Initialize Database Schema
+### 2. Environment Variables
 
-After creating the database, run the initialization script:
+Vercel automatically provides the following environment variables when you create a Postgres database:
+- `POSTGRES_URL` - Connection string
+- `POSTGRES_PRISMA_URL` - Prisma connection string (for Prisma Client)
+- `POSTGRES_URL_NON_POOLING` - Direct connection string (for migrations)
 
-**Option A: Using Vercel Dashboard**
-1. Go to your database in Vercel Dashboard
-2. Click on **Query** tab
-3. Copy and paste the contents of `scripts/init-db.sql`
-4. Execute the SQL script
+These are automatically available in your Vercel functions. No manual configuration needed!
 
-**Option B: Using Vercel CLI**
+### 3. Deploy to Vercel (Automatic Prisma Setup)
+
+**Vercel will automatically:**
+- Install dependencies (`npm install`)
+- Generate Prisma Client (via `postinstall` script)
+- Run your application
+
+**Steps:**
+1. Push your code to GitHub/GitLab/Bitbucket
+2. Connect your repository to Vercel
+3. Vercel will automatically detect and build your project
+4. Prisma Client will be generated automatically during build
+
+**No local setup required!** 🎉
+
+### 4. Run Database Migrations
+
+**Option A: Using Vercel CLI (Recommended)**
 ```bash
 # Install Vercel CLI if not already installed
 npm i -g vercel
@@ -144,28 +162,45 @@ npm i -g vercel
 # Link your project
 vercel link
 
-# Run the SQL script
-vercel db execute scripts/init-db.sql
+# Run migrations
+vercel env pull .env.local  # Get environment variables
+npx prisma migrate deploy
 ```
 
-### 3. Environment Variables
+**Option B: Using Vercel Dashboard**
+1. Go to your project in Vercel Dashboard
+2. Navigate to **Settings** → **Environment Variables**
+3. Ensure `POSTGRES_PRISMA_URL` and `POSTGRES_URL_NON_POOLING` are set
+4. Go to **Deployments** tab
+5. Click on the latest deployment → **Functions** tab
+6. You can run migrations via Vercel's built-in terminal or use the CLI
 
-Vercel automatically provides the following environment variables when you create a Postgres database:
-- `POSTGRES_URL` - Connection string
-- `POSTGRES_PRISMA_URL` - Prisma connection string (if using Prisma)
-- `POSTGRES_URL_NON_POOLING` - Direct connection string
+**Option C: First Migration via Vercel Dashboard Query Tab**
+1. Go to your database in Vercel Dashboard
+2. Click on **Query** tab
+3. Copy the SQL from `prisma/migrations` (if you created one locally)
+4. Or use Prisma's migration SQL format
 
-These are automatically available in your Vercel functions. No manual configuration needed!
+### 5. Local Development (Optional)
 
-### 4. Local Development
-
-For local development, you can:
+**Note:** You can develop entirely on Vercel, but if you want local development:
 
 **Option A: Use Vercel Postgres (Recommended)**
-1. Get your `POSTGRES_URL` from Vercel Dashboard
-2. Add it to your local `.env` file:
+1. Get your connection strings from Vercel Dashboard:
+   - `POSTGRES_PRISMA_URL`
+   - `POSTGRES_URL_NON_POOLING`
+2. Add them to your local `.env` file:
    ```env
-   POSTGRES_URL=your-vercel-postgres-url
+   POSTGRES_PRISMA_URL=your-vercel-prisma-url
+   POSTGRES_URL_NON_POOLING=your-vercel-non-pooling-url
+   ```
+3. Generate Prisma Client:
+   ```bash
+   npx prisma generate
+   ```
+4. Run migrations:
+   ```bash
+   npx prisma migrate dev
    ```
 
 **Option B: Use Local PostgreSQL**
@@ -174,28 +209,47 @@ For local development, you can:
    ```bash
    createdb mochila_dev
    ```
-3. Run the schema:
-   ```bash
-   psql mochila_dev < scripts/init-db.sql
-   ```
-4. Add to `.env`:
+3. Add to `.env`:
    ```env
-   POSTGRES_URL=postgresql://user:password@localhost:5432/mochila_dev
+   POSTGRES_PRISMA_URL=postgresql://user:password@localhost:5432/mochila_dev?schema=public&pgbouncer=true
+   POSTGRES_URL_NON_POOLING=postgresql://user:password@localhost:5432/mochila_dev?schema=public
    ```
+4. Run migrations:
+   ```bash
+   npx prisma migrate dev
+   ```
+
+### 6. Prisma Studio (Optional)
+
+To view and edit your database data visually:
+```bash
+npx prisma studio
+```
+
+This will open Prisma Studio at `http://localhost:5555`
 
 ### Database Schema
 
-The database includes the following tables:
-- `users` - User profiles and information
-- `user_photos` - Multiple photos per user
-- `likes` - Like relationships between users
-- `footprints` - Profile view tracking
+The database schema is defined in `prisma/schema.prisma` and includes:
 
-See `scripts/init-db.sql` for the complete schema definition.
+- **User** - User profiles and information
+- **UserPhoto** - Multiple photos per user
+- **Like** - Like relationships between users
+- **Footprint** - Profile view tracking
+
+All relationships are properly defined with foreign keys and cascading deletes.
+
+### Prisma Commands
+
+- `npm run prisma:generate` - Generate Prisma Client
+- `npm run prisma:migrate` - Create and apply migrations (dev)
+- `npm run prisma:deploy` - Apply migrations (production)
+- `npm run prisma:studio` - Open Prisma Studio
 
 ## Features
 
-- ✅ **Vercel Postgres Database** - Persistent data storage
+- ✅ **Vercel Postgres + Prisma ORM** - Type-safe database access
+- ✅ **Prisma Migrations** - Version-controlled database schema
 - ✅ Dynamic user and member data
 - ✅ Image upload and storage
 - ✅ Likes and footprints tracking
@@ -203,3 +257,4 @@ See `scripts/init-db.sql` for the complete schema definition.
 - ✅ Multiple photos support
 - ✅ Absolute URL generation for images
 - ✅ Automatic database connection management
+- ✅ Type-safe database queries

@@ -1,0 +1,107 @@
+// Prisma Schema for Mochila App
+// This file defines the database schema using Prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+model User {
+  id                        String   @id @default(uuid())
+  email                     String   @unique
+  displayName               String?  @map("display_name")
+  age                       Int?
+  region                    String?
+  hometown                  String?
+  profilePhotoUrl           String?  @map("profile_photo_url") @db.Text
+  profilePhotoFilter        String?  @default("original") @map("profile_photo_filter")
+  isOnline                  Boolean  @default(false) @map("is_online")
+  matchRate                 Int      @default(0) @map("match_rate")
+  interests                 String[] @default([])
+  videoCallOk               Boolean  @default(false) @map("video_call_ok")
+  selfIntroduction          String?  @map("self_introduction") @db.Text
+  height                    String?
+  bodyType                  String?  @map("body_type")
+  charmPoints               String[] @default([]) @map("charm_points")
+  personality               String[] @default([])
+  languages                 String[] @default(["日本語"])
+  bloodType                 String?  @map("blood_type")
+  siblings                  String?
+  occupation                String?
+  income                    String?
+  education                 String?
+  likesCount                Int      @default(0) @map("likes_count")
+  viewsCount                Int      @default(0) @map("views_count")
+  gender                    String?
+  travelCompanionPreferences String[] @default([]) @map("travel_companion_preferences")
+  activityInterests         String[] @default([]) @map("activity_interests")
+  personalityTraits        String[] @default([]) @map("personality_traits")
+  matchPreference           String?  @map("match_preference")
+  birthday                  DateTime? @db.Date
+  purposeOfUse             String[] @default([]) @map("purpose_of_use")
+  howDidYouLearn            String?  @map("how_did_you_learn")
+  emailNotifications        Json?    @map("email_notifications")
+  travelDestination         String?  @map("travel_destination")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  photos                    UserPhoto[]
+  likesGiven                Like[]   @relation("LikesFrom") @map("likes_given")
+  likesReceived             Like[]   @relation("LikesTo") @map("likes_received")
+  footprintsAsViewer        Footprint[] @relation("FootprintViewer") @map("footprints_as_viewer")
+  footprintsAsViewed       Footprint[] @relation("FootprintViewed") @map("footprints_as_viewed")
+
+  @@index([email])
+  @@index([displayName])
+  @@map("users")
+}
+
+model UserPhoto {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  photoUrl String   @map("photo_url") @db.Text
+  photoOrder Int     @default(0) @map("photo_order")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_photos")
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  fromUserId String  @map("from_user_id")
+  toUserId   String  @map("to_user_id")
+  timestamp  DateTime @default(now())
+
+  fromUser  User     @relation("LikesFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser    User     @relation("LikesTo", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@unique([fromUserId, toUserId])
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@map("likes")
+}
+
+model Footprint {
+  id        String   @id @default(uuid())
+  viewerId  String   @map("viewer_id")
+  viewedId  String   @map("viewed_id")
+  timestamp DateTime @default(now())
+
+  viewer    User     @relation("FootprintViewer", fields: [viewerId], references: [id], onDelete: Cascade)
+  viewed    User     @relation("FootprintViewed", fields: [viewedId], references: [id], onDelete: Cascade)
+
+  @@index([viewerId])
+  @@index([viewedId])
+  @@index([timestamp(sort: Desc)])
+  @@map("footprints")
+}
+
