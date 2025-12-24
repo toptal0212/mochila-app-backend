@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
+const { getS3Config } = require('./utils/s3Upload');
 require('dotenv').config();
 
 const app = express();
@@ -122,7 +123,7 @@ app.post('/api/send-verification-email', async(req, res) => {
             <h1 style="color: #6758E8; font-size: 32px; letter-spacing: 8px; margin: 0;">${code}</h1>
           </div>
           <p style="font-size: 14px; color: #999; line-height: 1.6;">
-            このコードは10分間有効です。<br/>
+            このコードは1分間有効です。<br/>
             このメールに心当たりがない場合は、無視してください。
           </p>
         </div>
@@ -134,7 +135,7 @@ app.post('/api/send-verification-email', async(req, res) => {
 
 ${code}
 
-このコードは10分間有効です。
+このコードは1分間有効です。
 このメールに心当たりがない場合は、無視してください。
       `,
         };
@@ -188,12 +189,30 @@ app.use('/api/members', membersRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    const s3Config = getS3Config();
+    res.json({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        storage: {
+            s3Enabled: s3Config.enabled,
+            s3Configured: s3Config.hasCredentials,
+            bucket: s3Config.enabled ? s3Config.bucket : 'not configured',
+            region: s3Config.enabled ? s3Config.region : 'not configured',
+        },
+        email: {
+            service: process.env.EMAIL_SERVICE || 'console (testing mode)',
+        },
+    });
 });
 
 // Start server
 app.listen(PORT, () => {
+    const s3Config = getS3Config();
     console.log(`Server is running on port ${PORT}`);
     console.log(`Email service: ${process.env.EMAIL_SERVICE || 'console (testing mode)'}`);
+    console.log(`Storage mode: ${s3Config.enabled ? `S3 (${s3Config.bucket})` : 'Local filesystem'}`);
+    if (s3Config.enabled) {
+        console.log(`S3 Region: ${s3Config.region}`);
+    }
     console.log(`Health check: http://localhost:${PORT}/health`);
 });

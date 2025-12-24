@@ -2,6 +2,8 @@
 
 Backend server for the Mochila dating/social app.
 
+> **Why is the backend needed?** See [WHY_BACKEND_NEEDED.md](./WHY_BACKEND_NEEDED.md) for a detailed explanation.
+
 ## Project Structure
 
 ```
@@ -11,12 +13,14 @@ mochila-backend/
 │   ├── user.js      # User profile routes
 │   └── members.js   # Members list and profile routes
 ├── utils/            # Utility functions
-│   └── dataStore.js # Database operations (Prisma Client)
+│   ├── dataStore.js # Database operations (Prisma Client)
+│   └── s3Upload.js  # AWS S3 upload utilities
 ├── prisma/           # Prisma configuration
 │   └── schema.prisma # Database schema definition
 ├── scripts/          # Database scripts (legacy SQL)
 │   └── init-db.sql  # Legacy SQL schema (not needed with Prisma)
-├── uploads/          # Uploaded images directory (created automatically)
+├── uploads/          # Uploaded images directory (local dev only)
+├── test-s3.js        # S3 configuration test script
 ├── package.json      # Dependencies
 └── README.md         # This file
 ```
@@ -37,6 +41,13 @@ mochila-backend/
    API_BASE_URL=http://localhost:3000
    FRONTEND_URL=*
    
+   # AWS S3 Configuration (for image uploads)
+   USE_S3_STORAGE=true
+   AWS_ACCESS_KEY_ID=your-aws-access-key
+   AWS_SECRET_ACCESS_KEY=your-aws-secret-key
+   AWS_S3_BUCKET=mochila-app-images
+   AWS_REGION=ap-northeast-1
+   
    # Email Service Configuration (optional)
    EMAIL_SERVICE=gmail
    EMAIL_USER=your-email@gmail.com
@@ -50,7 +61,16 @@ mochila-backend/
    API_BASE_URL=https://mochila-app-backend.vercel.app
    FRONTEND_URL=*
    NODE_ENV=production
+   
+   # AWS S3 (Required for image uploads on Vercel!)
+   USE_S3_STORAGE=true
+   AWS_ACCESS_KEY_ID=your-aws-access-key
+   AWS_SECRET_ACCESS_KEY=your-aws-secret-key
+   AWS_S3_BUCKET=mochila-app-images
+   AWS_REGION=ap-northeast-1
    ```
+
+   > 📘 **AWS S3 Setup:** See [QUICKSTART_S3.md](./QUICKSTART_S3.md) for a quick setup guide or [AWS_S3_SETUP.md](./AWS_S3_SETUP.md) for detailed instructions.
 
 ## Running the Server
 
@@ -64,7 +84,112 @@ npm run dev
 npm start
 ```
 
+**Test S3 configuration:**
+```bash
+npm run test-s3
+```
+
 The server will run on `http://localhost:3000` by default.
+
+### Health Check
+
+Visit `http://localhost:3000/health` to verify server status and configuration:
+```json
+{
+  "status": "ok",
+  "timestamp": "2025-12-25T...",
+  "storage": {
+    "s3Enabled": true,
+    "s3Configured": true,
+    "bucket": "mochila-app-images",
+    "region": "ap-northeast-1"
+  },
+  "email": {
+    "service": "gmail"
+  }
+}
+```
+
+## Using ngrok to Share Backend with Clients
+
+ngrok creates a public HTTPS tunnel to your local backend, allowing clients to test the API from anywhere.
+
+### Step-by-Step Guide
+
+1. **Start your backend server:**
+   ```bash
+   cd mochila-backend
+   npm run dev
+   ```
+   Your server should be running on `http://localhost:3000`
+
+2. **Start ngrok in a new terminal:**
+   ```bash
+   ngrok http 3000
+   ```
+   
+   You'll see output like:
+   ```
+   Forwarding  https://abc123.ngrok.io -> http://localhost:3000
+   ```
+
+3. **Copy the HTTPS URL** from the ngrok output (the `https://` URL, not the `http://` one)
+
+4. **Share the URL with your client:**
+   - Send them the full URL: `https://abc123.ngrok.io`
+   - They can use this URL as their API base URL
+   - Example API endpoint: `https://abc123.ngrok.io/api/user/profile`
+
+### Monitoring Requests (Optional)
+
+ngrok provides a web interface to monitor all incoming requests:
+
+1. While ngrok is running, open your browser to: `http://localhost:4040`
+2. You'll see:
+   - All incoming requests in real-time
+   - Request/response details
+   - Request history
+   - Useful for debugging and showing clients what's happening
+
+### Using a Stable URL (Recommended for Client Sharing)
+
+**Free ngrok accounts** can use a custom domain that doesn't change:
+
+1. Sign up for a free ngrok account at https://dashboard.ngrok.com
+2. Get your authtoken from the dashboard
+3. Configure ngrok:
+   ```bash
+   ngrok config add-authtoken YOUR_AUTH_TOKEN
+   ```
+4. Reserve a free domain in the ngrok dashboard
+5. Start ngrok with your custom domain:
+   ```bash
+   ngrok http 3000 --domain=your-custom-domain.ngrok-free.app
+   ```
+
+This way, the URL stays the same every time you start ngrok, so your client doesn't need to update their configuration.
+
+### What to Share with Your Client
+
+Send them:
+- **API Base URL:** `https://your-domain.ngrok.io` (or your custom domain)
+- **API Endpoints:** List of available endpoints (see API Endpoints section below)
+- **Important:** Let them know this is a development/testing URL and may be temporary
+
+### Security Considerations
+
+⚠️ **Important for Client Sharing:**
+- ngrok URLs are publicly accessible - anyone with the URL can access your backend
+- Only share the URL with trusted clients
+- Consider adding authentication/API keys for production use
+- The tunnel is active only while ngrok is running
+- For production, use your Vercel deployment URL instead
+
+### Troubleshooting
+
+- **Client can't connect:** Make sure both your backend server AND ngrok are running
+- **URL changed:** If you restarted ngrok without a custom domain, you'll get a new URL - share the new one
+- **Connection timeout:** Check that your backend is running on port 3000 and ngrok is forwarding to the correct port
 
 ## API Endpoints
 
@@ -88,32 +213,39 @@ The server will run on `http://localhost:3000` by default.
 
 ## Image Upload
 
-**⚠️ Important for Vercel Deployment:**
+### AWS S3 (Recommended for Vercel)
 
-Vercel is a serverless platform, and files uploaded to the local filesystem (`uploads/` directory) are **NOT persistent**. They will be lost when:
-- The serverless function restarts
-- A new deployment is made
-- The function goes idle
+**⚠️ Important:** Vercel has a **read-only filesystem**. Uploaded files to the local `uploads/` directory will be lost immediately. You **MUST** use AWS S3 for persistent image storage on Vercel.
 
-**For production on Vercel, you need to use cloud storage:**
+**Quick Setup:**
+1. Create AWS account and S3 bucket
+2. Configure IAM user with S3 permissions
+3. Add AWS credentials to Vercel environment variables
+4. Enable S3: `USE_S3_STORAGE=true`
 
-1. **Vercel Blob Storage** (Recommended)
-   - Install: `npm install @vercel/blob`
-   - Set `BLOB_READ_WRITE_TOKEN` in Vercel environment variables
+📘 **Detailed Guide:** [QUICKSTART_S3.md](./QUICKSTART_S3.md)
 
-2. **Cloudinary** (Alternative)
-   - Install: `npm install cloudinary`
-   - Set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
+**Features:**
+- ✅ Persistent image storage
+- ✅ Automatic upload to S3
+- ✅ Automatic deletion of old images
+- ✅ Public URLs for images
+- ✅ Works seamlessly on Vercel
+- ✅ Automatic fallback to local storage (dev mode)
 
-3. **AWS S3** (Alternative)
-   - Use `aws-sdk` or `@aws-sdk/client-s3`
+**Testing:**
+```bash
+npm run test-s3
+```
 
-**Local Development:**
-Images are uploaded to the `uploads/` directory and served statically at `/uploads/:filename`.
-The API returns absolute URLs like `http://localhost:3000/uploads/profile-photo-1234567890.jpg`.
+### Local Development (Filesystem)
 
-**Vercel Production:**
-The API returns absolute URLs like `https://mochila-app-backend.vercel.app/uploads/profile-photo-1234567890.jpg` (but files won't persist without cloud storage).
+For local development without S3:
+1. Set `USE_S3_STORAGE=false` in `.env` (or omit it)
+2. Images will be saved to `uploads/` directory
+3. Served at `/uploads/:filename`
+
+**Note:** Local storage won't work on Vercel!
 
 ## Database Setup (Vercel Postgres + Prisma)
 
@@ -248,13 +380,31 @@ All relationships are properly defined with foreign keys and cascading deletes.
 
 ## Features
 
+- ✅ **AWS S3 Integration** - Persistent image storage for Vercel
 - ✅ **Vercel Postgres + Prisma ORM** - Type-safe database access
 - ✅ **Prisma Migrations** - Version-controlled database schema
 - ✅ Dynamic user and member data
-- ✅ Image upload and storage
+- ✅ Image upload and storage (S3 + local fallback)
 - ✅ Likes and footprints tracking
 - ✅ Profile views tracking
 - ✅ Multiple photos support
 - ✅ Absolute URL generation for images
 - ✅ Automatic database connection management
 - ✅ Type-safe database queries
+- ✅ Email verification support
+
+## Documentation
+
+- 📘 [Quick S3 Setup](./QUICKSTART_S3.md) - Get S3 working in 15 minutes
+- 📗 [Detailed S3 Guide](./AWS_S3_SETUP.md) - Complete AWS S3 setup instructions
+- 📙 [Deployment Checklist](./DEPLOYMENT_CHECKLIST_S3.md) - Vercel deployment with S3
+- 📕 [Why Backend Needed](./WHY_BACKEND_NEEDED.md) - Architecture explanation
+
+## Testing
+
+```bash
+npm run dev           # Start development server
+npm run test-email    # Test email configuration
+npm run test-s3       # Test S3 configuration
+npm run prisma:studio # Open database GUI
+```

@@ -4,23 +4,27 @@ const path = require('path');
 const fs = require('fs');
 const router = express.Router();
 const { getUserByEmail, getUserById, saveUser } = require('../utils/dataStore');
+const { uploadToS3, deleteFromS3, isS3Enabled, getS3Config } = require('../utils/s3Upload');
 
 const API_BASE_URL = process.env.API_BASE_URL || 'https://mochila-app-backend.vercel.app';
 
 // Configure multer for file uploads
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '../uploads');
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'profile-photo-' + uniqueSuffix + path.extname(file.originalname));
-    },
-});
+// Use memory storage for S3, disk storage for local
+const storage = isS3Enabled() 
+    ? multer.memoryStorage() // Store in memory for S3 upload
+    : multer.diskStorage({
+        destination: (req, file, cb) => {
+            const uploadDir = path.join(__dirname, '../uploads');
+            if (!fs.existsSync(uploadDir)) {
+                fs.mkdirSync(uploadDir, { recursive: true });
+            }
+            cb(null, uploadDir);
+        },
+        filename: (req, file, cb) => {
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            cb(null, 'profile-photo-' + uniqueSuffix + path.extname(file.originalname));
+        },
+    });
 
 const upload = multer({
     storage: storage,
@@ -28,14 +32,14 @@ const upload = multer({
         fileSize: 10 * 1024 * 1024, // 10MB limit
     },
     fileFilter: (req, file, cb) => {
-        const allowedTypes = /jpeg|jpg|png|gif/;
+        const allowedTypes = /jpeg|jpg|png|gif|webp/;
         const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
         const mimetype = allowedTypes.test(file.mimetype);
 
         if (mimetype && extname) {
             return cb(null, true);
         } else {
-            cb(new Error('Only image files are allowed!'));
+            cb(new Error('Only image files are allowed (jpeg, jpg, png, gif, webp)!'));
         }
     },
 });
@@ -172,8 +176,8 @@ router.post('/profile/photo', upload.single('photo'), async (req, res) => {
 
         // Validation
         if (!email) {
-            // Delete uploaded file if validation fails
-            if (req.file) {
+            // Delete uploaded file if validation fails (local storage only)
+            if (req.file && req.file.path) {
                 fs.unlinkSync(req.file.path);
             }
             return res.status(400).json({
@@ -192,17 +196,37 @@ router.post('/profile/photo', upload.single('photo'), async (req, res) => {
         // Find user
         let user = await getUserByEmail(email);
         if (!user) {
-            // Delete uploaded file if user not found
-            fs.unlinkSync(req.file.path);
+            // Delete uploaded file if user not found (local storage only)
+            if (req.file && req.file.path) {
+                fs.unlinkSync(req.file.path);
+            }
             return res.status(404).json({
                 success: false,
                 error: 'User not found',
             });
         }
 
-        // Store photo URL with absolute path
-        const relativePhotoUrl = `/uploads/${req.file.filename}`;
-        const absolutePhotoUrl = `${API_BASE_URL}${relativePhotoUrl}`;
+        let photoUrl;
+        let relativePhotoUrl;
+
+        // Upload to S3 or save locally based on configuration
+        if (isS3Enabled()) {
+            // Upload to S3
+            console.log('📤 Uploading to S3...');
+            photoUrl = await uploadToS3(
+                req.file.buffer, 
+                req.file.originalname, 
+                req.file.mimetype,
+                'profile-photos'
+            );
+            relativePhotoUrl = photoUrl; // Store full S3 URL
+            console.log('✅ S3 upload complete:', photoUrl);
+        } else {
+            // Local storage (Vercel won't work, but useful for local dev)
+            console.log('💾 Saving locally...');
+            relativePhotoUrl = `/uploads/${req.file.filename}`;
+            photoUrl = `${API_BASE_URL}${relativePhotoUrl}`;
+        }
         
         // Initialize photos array if it doesn't exist
         if (!user.photos) {
@@ -216,11 +240,18 @@ router.post('/profile/photo', upload.single('photo'), async (req, res) => {
             // Replace main profile photo
             // Delete old main photo if exists
             if (user.profilePhotoUrl) {
-                const oldPhotoPath = path.join(__dirname, '../uploads', path.basename(user.profilePhotoUrl));
-                if (fs.existsSync(oldPhotoPath)) {
-                    fs.unlinkSync(oldPhotoPath);
+                if (isS3Enabled() && user.profilePhotoUrl.includes('s3.amazonaws.com')) {
+                    // Delete from S3
+                    await deleteFromS3(user.profilePhotoUrl);
+                } else if (user.profilePhotoUrl.startsWith('/uploads/')) {
+                    // Delete from local storage
+                    const oldPhotoPath = path.join(__dirname, '../uploads', path.basename(user.profilePhotoUrl));
+                    if (fs.existsSync(oldPhotoPath)) {
+                        fs.unlinkSync(oldPhotoPath);
+                    }
                 }
             }
+            
             user.profilePhotoUrl = relativePhotoUrl;
             user.profilePhotoFilter = filter || 'original';
             
@@ -241,22 +272,34 @@ router.post('/profile/photo', upload.single('photo'), async (req, res) => {
             profilePhotoFilter: user.profilePhotoFilter,
         });
 
+        // Format URLs for response
+        const formatPhotoUrl = (url) => {
+            if (!url) return null;
+            if (url.startsWith('http')) return url; // Already absolute (S3)
+            return `${API_BASE_URL}${url}`; // Local storage
+        };
+
         res.json({
             success: true,
             message: 'Profile photo uploaded successfully',
-            photoUrl: absolutePhotoUrl, // Return absolute URL to frontend
+            photoUrl: photoUrl, // Return absolute URL to frontend
+            storageType: isS3Enabled() ? 's3' : 'local',
             user: {
                 id: user.id,
                 email: user.email,
-                profilePhotoUrl: user.profilePhotoUrl ? `${API_BASE_URL}${user.profilePhotoUrl}` : null,
-                photos: user.photos.map(p => p.startsWith('http') ? p : `${API_BASE_URL}${p}`),
+                profilePhotoUrl: formatPhotoUrl(user.profilePhotoUrl),
+                photos: user.photos.map(formatPhotoUrl),
                 profilePhotoFilter: user.profilePhotoFilter,
             },
         });
     } catch (error) {
-        // Delete uploaded file if error occurs
-        if (req.file) {
-            fs.unlinkSync(req.file.path);
+        // Delete uploaded file if error occurs (local storage only)
+        if (req.file && req.file.path) {
+            try {
+                fs.unlinkSync(req.file.path);
+            } catch (unlinkError) {
+                console.error('Error deleting file:', unlinkError);
+            }
         }
         console.error('Error uploading photo:', error);
         res.status(500).json({
