@@ -190,8 +190,8 @@ app.use('/api/members', membersRoutes);
 // Health check endpoint
 app.get('/health', (req, res) => {
     const s3Config = getS3Config();
-    res.json({ 
-        status: 'ok', 
+    res.json({
+        status: 'ok',
         timestamp: new Date().toISOString(),
         storage: {
             s3Enabled: s3Config.enabled,
@@ -207,10 +207,10 @@ app.get('/health', (req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-    const s3Config = getS3Config();
-    console.log(`Server is running on port ${PORT}`);
-    console.log(`Email service: ${process.env.EMAIL_SERVICE || 'console (testing mode)'}`);
-    console.log(`Storage mode: ${s3Config.enabled ? `S3 (${s3Config.bucket})` : 'Local filesystem'}`);
+            const s3Config = getS3Config();
+            console.log(`Server is running on port ${PORT}`);
+            console.log(`Email service: ${process.env.EMAIL_SERVICE || 'console (testing mode)'}`);
+            console.log(`Storage mode: ${s3Config.enabled ? `S3 (${s3Config.bucket})` : 'Local filesystem'}`);
     if (s3Config.enabled) {
         console.log(`S3 Region: ${s3Config.region}`);
     }

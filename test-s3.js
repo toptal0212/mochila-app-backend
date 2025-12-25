@@ -32,20 +32,20 @@ async function testS3Configuration() {
     // Step 1: Check configuration
     log('📋 Step 1: Checking S3 Configuration...', 'blue');
     const config = getS3Config();
-    
+
     console.log('Configuration Status:');
     console.log(`  USE_S3_STORAGE: ${process.env.USE_S3_STORAGE}`);
     console.log(`  S3 Enabled: ${config.enabled ? '✅' : '❌'}`);
     console.log(`  Has Credentials: ${config.hasCredentials ? '✅' : '❌'}`);
     console.log(`  Bucket: ${config.bucket}`);
     console.log(`  Region: ${config.region}`);
-    
+
     if (!config.enabled) {
         log('\n⚠️  S3 is not enabled!', 'yellow');
         log('To enable S3, set USE_S3_STORAGE=true in your .env file', 'yellow');
         return false;
     }
-    
+
     if (!config.hasCredentials) {
         log('\n❌ AWS credentials are missing!', 'red');
         log('Please add the following to your .env file:', 'yellow');
@@ -55,9 +55,9 @@ async function testS3Configuration() {
         log('  AWS_REGION=your-aws-region', 'yellow');
         return false;
     }
-    
+
     log('\n✅ S3 Configuration looks good!\n', 'green');
-    
+
     // Step 2: Create test image
     log('📝 Step 2: Creating test image...', 'blue');
     const testImageBuffer = Buffer.from(
@@ -65,7 +65,7 @@ async function testS3Configuration() {
         'base64'
     );
     log('✅ Test image created (1x1 pixel PNG)\n', 'green');
-    
+
     // Step 3: Upload test image
     log('📤 Step 3: Uploading test image to S3...', 'blue');
     let uploadedUrl;
@@ -86,13 +86,13 @@ async function testS3Configuration() {
         log('  - Ensure IAM user has S3 PutObject permission', 'yellow');
         return false;
     }
-    
+
     // Step 4: Test public access
     log('\n🌐 Step 4: Testing public access...', 'blue');
     log(`   Try opening this URL in your browser:`, 'cyan');
     log(`   ${uploadedUrl}`, 'cyan');
     log('   (A 1x1 pixel image should load)', 'yellow');
-    
+
     // Step 5: Delete test image
     log('\n🗑️  Step 5: Cleaning up test image...', 'blue');
     try {
@@ -105,7 +105,7 @@ async function testS3Configuration() {
     } catch (error) {
         log(`⚠️  Delete failed: ${error.message}`, 'yellow');
     }
-    
+
     // Final summary
     console.log('\n' + '='.repeat(60));
     log('✅ S3 Test Complete!', 'green');
@@ -117,7 +117,7 @@ async function testS3Configuration() {
     log(`  Folder: profile-photos/`, 'cyan');
     log('\nYou can now upload images from your app.', 'green');
     console.log('');
-    
+
     return true;
 }
 
@@ -131,4 +131,3 @@ testS3Configuration()
         console.error(error);
         process.exit(1);
     });
-

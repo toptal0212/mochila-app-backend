@@ -53,7 +53,7 @@ async function uploadToS3(fileBuffer, fileName, mimeType, folder = 'profile-phot
         const publicUrl = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'ap-northeast-1'}.amazonaws.com/${key}`;
 
         console.log('✅ File uploaded successfully to S3:', publicUrl);
-        
+
         return publicUrl;
     } catch (error) {
         console.error('❌ Error uploading to S3:', error);
@@ -75,7 +75,7 @@ async function deleteFromS3(fileUrl) {
             console.warn('⚠️ Invalid S3 URL format:', fileUrl);
             return false;
         }
-        
+
         const key = urlParts[1];
 
         const deleteParams = {
@@ -102,16 +102,16 @@ async function deleteFromS3(fileUrl) {
 function isS3Enabled() {
     const enabled = process.env.USE_S3_STORAGE === 'true';
     const hasCredentials = !!(
-        process.env.AWS_ACCESS_KEY_ID && 
+        process.env.AWS_ACCESS_KEY_ID &&
         process.env.AWS_SECRET_ACCESS_KEY &&
         process.env.AWS_S3_BUCKET
     );
-    
+
     if (enabled && !hasCredentials) {
         console.warn('⚠️ S3 storage is enabled but AWS credentials are missing!');
         return false;
     }
-    
+
     return enabled && hasCredentials;
 }
 
@@ -134,4 +134,3 @@ module.exports = {
     isS3Enabled,
     getS3Config,
 };
-
