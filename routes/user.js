@@ -377,10 +377,18 @@ router.post('/profile/photo', optionalUpload, async(req, res) => {
             }
         }
         console.error('Error uploading photo:', error);
+        console.error('Error stack:', error.stack);
+        console.error('Error details:', {
+            message: error.message,
+            name: error.name,
+            code: error.code,
+        });
         res.status(500).json({
             success: false,
             error: 'Failed to upload photo',
-            details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+            details: error.message, // Temporarily show error in production for debugging
+            errorName: error.name,
+            errorCode: error.code,
         });
     }
 });
