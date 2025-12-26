@@ -36,8 +36,7 @@ async function uploadToS3(fileBuffer, fileName, mimeType, folder = 'profile-phot
             Key: key,
             Body: fileBuffer,
             ContentType: mimeType,
-            // Make file publicly readable
-            ACL: 'public-read',
+            // Public access is controlled by bucket policy, not ACL
         };
 
         // Use Upload for better handling of large files
